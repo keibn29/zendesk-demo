@@ -1,0 +1,19 @@
+{
+  "name": "Slack Origin Bridge",
+  "author": {
+    "name": "Kei",
+    "email": "osve13@tidesquare.com"
+  },
+  "defaultLocale": "en",
+  "private": true,
+  "location": {
+    "support": {
+      "ticket_sidebar": {
+        "url": "https://zendesk.kei.info.vn/",
+        "flexible": true
+      }
+    }
+  },
+  "version": "1.0.0",
+  "frameworkVersion": "2.0"
+}

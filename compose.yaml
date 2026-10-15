@@ -1,0 +1,13 @@
+services:
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./api/.env
+    volumes:
+      - bridge-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  bridge-data:

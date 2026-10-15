@@ -1,0 +1,8 @@
+{
+  "app": {
+    "name": "Slack Origin Bridge",
+    "short_description": "Displays Slack origin coordinates and expected reactions",
+    "long_description": "Inspects ticket external IDs matching slack:{team_id}:{channel_id}:{message_ts}, displays Slack origin coordinates with deep links, and shows the configured Zendesk-to-Slack reaction mapping.",
+    "installation_instructions": "Upload this package as a private Zendesk Support app in Admin Center."
+  }
+}
