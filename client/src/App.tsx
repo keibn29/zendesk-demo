@@ -237,7 +237,7 @@ export default function App() {
         </main>
       )}
 
-      <div className="actions-group">
+      <div className="actions-group link-buttons">
         <a
           href="https://tidesquare.vn"
           target="_blank"
@@ -245,6 +245,14 @@ export default function App() {
           className="button btn btn-primary"
         >
           Mở Tidesquare
+        </a>
+        <a
+          href="https://tidesquare.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="button btn btn-primary"
+        >
+          Mở Tidesquare Global
         </a>
       </div>
     </div>

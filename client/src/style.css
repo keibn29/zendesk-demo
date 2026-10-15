@@ -291,6 +291,12 @@ body {
   gap: 6px;
 }
 
+/* Demo link buttons: separated from the card above, consistent gap between them */
+.link-buttons {
+  margin-top: 12px;
+  gap: 8px;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

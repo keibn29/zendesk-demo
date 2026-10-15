@@ -2,11 +2,16 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
-function expectTidesquareButton() {
-  const link = screen.getByRole('link', { name: 'Mở Tidesquare' });
-  expect(link).toHaveAttribute('href', 'https://tidesquare.vn');
+function expectLinkButton(name: string, href: string) {
+  const link = screen.getByRole('link', { name });
+  expect(link).toHaveAttribute('href', href);
   expect(link).toHaveAttribute('target', '_blank');
   expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+}
+
+function expectTidesquareButton() {
+  expectLinkButton('Mở Tidesquare', 'https://tidesquare.vn');
+  expectLinkButton('Mở Tidesquare Global', 'https://tidesquare.com');
 }
 
 afterEach(() => {
