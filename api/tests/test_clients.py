@@ -180,3 +180,140 @@ async def test_slack_wraps_timeout(slack_client_factory):
     client = slack_client_factory(handler)
     with pytest.raises(UpstreamError, match="timed out"):
         await client.add_reaction(channel="C", name="eyes", timestamp="1")
+
+# --- Zendesk client_credentials token provider ---
+
+from app.clients import ZendeskTokenProvider  # noqa: E402
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _provider(handler, clock=None, **kw) -> ZendeskTokenProvider:
+    return ZendeskTokenProvider(
+        base_url="https://testsub.zendesk.com",
+        client_id="slack_bridge",
+        client_secret="s3cr3t-value",
+        scopes="tickets:read tickets:write",
+        ttl_seconds=3600,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        clock=clock or _Clock(),
+        **kw,
+    )
+
+
+def _token_handler(calls: list, tokens: list[str], expires_in: int = 1800):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/tokens":
+            calls.append(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json={"access_token": tokens[len(calls) - 1], "expires_in": expires_in},
+            )
+        return httpx.Response(200, json={"ticket": {"id": 5}})
+
+    return handler
+
+
+async def test_token_fetched_once_and_reused():
+    calls: list = []
+    provider = _provider(_token_handler(calls, ["t1", "t2"]))
+    assert await provider.get_token() == "t1"
+    assert await provider.get_token() == "t1"
+    assert len(calls) == 1
+    assert calls[0] == {
+        "grant_type": "client_credentials",
+        "client_id": "slack_bridge",
+        "client_secret": "s3cr3t-value",
+        "scope": "tickets:read tickets:write",
+        "expires_in": 3600,
+    }
+
+
+async def test_token_refreshed_near_expiry():
+    calls: list = []
+    clock = _Clock()
+    provider = _provider(_token_handler(calls, ["t1", "t2"], expires_in=1800), clock)
+    assert await provider.get_token() == "t1"
+    clock.now += 1800 - 59  # inside the 60s refresh leeway
+    assert await provider.get_token() == "t2"
+    assert len(calls) == 2
+
+
+async def test_concurrent_callers_share_one_fetch():
+    import asyncio
+
+    calls: list = []
+    provider = _provider(_token_handler(calls, ["t1", "t2"]))
+    results = await asyncio.gather(*(provider.get_token() for _ in range(5)))
+    assert results == ["t1"] * 5
+    assert len(calls) == 1
+
+
+async def test_client_refreshes_and_retries_once_on_401():
+    token_calls: list = []
+    seen_auth: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/tokens":
+            token_calls.append(1)
+            return httpx.Response(
+                200, json={"access_token": f"t{len(token_calls)}", "expires_in": 1800}
+            )
+        seen_auth.append(request.headers["authorization"])
+        if len(seen_auth) == 1:
+            return httpx.Response(401, json={"error": "unauthorized"})
+        return httpx.Response(200, json={"ticket": {"id": 9}})
+
+    provider = _provider(handler)
+    client = ZendeskClient(
+        base_url="https://testsub.zendesk.com",
+        timeout=5,
+        token_provider=provider,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    ticket = await client.create_ticket(
+        subject="s", comment="c", external_id="e", idempotency_key="k"
+    )
+    assert ticket["id"] == 9
+    assert seen_auth == ["Bearer t1", "Bearer t2"]
+    assert len(token_calls) == 2
+
+
+async def test_client_gives_up_after_single_retry():
+    posts: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/tokens":
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 1800})
+        posts.append(1)
+        return httpx.Response(401, json={"error": "unauthorized"})
+
+    client = ZendeskClient(
+        base_url="https://testsub.zendesk.com",
+        timeout=5,
+        token_provider=_provider(handler),
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    with pytest.raises(UpstreamError):
+        await client.create_ticket(
+            subject="s", comment="c", external_id="e", idempotency_key="k"
+        )
+    assert len(posts) == 2
+
+
+async def test_token_error_does_not_leak_secret(caplog):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": "invalid_client"})
+
+    provider = _provider(handler)
+    with pytest.raises(UpstreamError) as exc:
+        await provider.get_token()
+    assert "s3cr3t-value" not in str(exc.value)
+    assert "s3cr3t-value" not in repr(provider)
+    assert "s3cr3t-value" not in caplog.text

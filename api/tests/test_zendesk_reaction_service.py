@@ -48,6 +48,15 @@ class TestReactionFor:
             ("solved", "white_check_mark"),
             ("closed", "white_check_mark"),
             ("SOLVED", "white_check_mark"),
+            (" SOLVED ", "white_check_mark"),
+            ("Open", "eyes"),
+            ("New", "eyes"),
+            ("Pending", "hourglass_flowing_sand"),
+            ("On-hold", "hourglass_flowing_sand"),
+            ("on hold", "hourglass_flowing_sand"),
+            ("OnHold", "hourglass_flowing_sand"),
+            ("on_hold", "hourglass_flowing_sand"),
+            ("Closed", "white_check_mark"),
         ],
     )
     def test_status_mapping(self, ticket_repo, event_repo, status, expected):
@@ -57,6 +66,7 @@ class TestReactionFor:
     def test_unknown_status_maps_to_empty(self, ticket_repo, event_repo):
         svc = build(object(), ticket_repo, event_repo)
         assert svc.reaction_for("weird") == ""
+        assert svc.reaction_for("Đang xử lý") == ""
 
 
 class TestApplyReaction:

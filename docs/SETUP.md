@@ -22,9 +22,9 @@ cp api/.env.example api/.env
 | `SLACK_CHANNEL_ALLOWLIST` | Tùy chọn: danh sách channel ID, cách nhau bằng dấu phẩy (trống = mọi channel bot ở trong) |
 | `ZENDESK_SUBDOMAIN` | Chỉ phần `acme` của `acme.zendesk.com` |
 | `ZENDESK_WEBHOOK_SECRET` | Signing secret của webhook Zendesk (bước 4) |
-| `ZENDESK_OAUTH_TOKEN` | Ưu tiên dùng; hoặc thay bằng `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN` |
+| `ZENDESK_OAUTH_CLIENT_ID` / `ZENDESK_OAUTH_CLIENT_SECRET` | OAuth client (client credentials) của service user; API tự lấy và làm mới token. Cũ (deprecated): `ZENDESK_OAUTH_TOKEN` tĩnh, hoặc `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN` |
 
-Bắt buộc: 3 secret (`SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `ZENDESK_WEBHOOK_SECRET`), `ZENDESK_SUBDOMAIN`, và một cách xác thực Zendesk. Thiếu là app không khởi động.
+Bắt buộc: 3 secret (`SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `ZENDESK_WEBHOOK_SECRET`), `ZENDESK_SUBDOMAIN`, và một cách xác thực Zendesk (client id + secret là cách khuyến nghị). Thiếu là app không khởi động.
 Map status -> emoji đổi qua `REACTION_NEW/OPEN/PENDING/HOLD/SOLVED/CLOSED` (mặc định: new/open = `eyes`, pending/hold = `hourglass_flowing_sand`, solved/closed = `white_check_mark`).
 
 ## 3. Tạo Slack App
@@ -49,15 +49,15 @@ Không cần custom field. Ticket được tạo với `external_id = slack:{tea
 
 > Nếu bạn không có quyền admin, gửi [ZENDESK_ADMIN_HANDOFF.md](./ZENDESK_ADMIN_HANDOFF.md) cho admin.
 
-1. API token: Admin Center -> Apps and integrations -> APIs -> Zendesk API (hoặc OAuth token) -> điền `.env`.
+1. Xác thực: tạo service user + OAuth client (client credentials) ở Admin Center -> Apps and integrations -> APIs -> OAuth clients; điền `ZENDESK_OAUTH_CLIENT_ID` và `ZENDESK_OAUTH_CLIENT_SECRET`. API token cũ bị Zendesk chặn tạo mới từ 2026-10-27.
 2. Webhook: Apps and integrations -> Webhooks -> Create webhook -> chọn **Trigger or automation** (khuyến nghị; payload do mình kiểm soát, khớp parser).
    - Endpoint URL: `https://<domain>/webhooks/zendesk`, POST, JSON, Authentication: None (API tự kiểm chữ ký).
    - Signing secret do Zendesk tự sinh: mở webhook -> Reveal secret -> `ZENDESK_WEBHOOK_SECRET`.
-3. Trigger (một trigger cho mỗi status open/pending/hold/solved): điều kiện `Ticket | Status | Changed to | <status>`, action Notify by -> Active webhook, JSON body:
+3. Trigger (chỉ 1): điều kiện `Ticket | Status | Changed` (không giá trị), action Notify by -> Active webhook, JSON body:
    ```json
-   {"invocation_id": "{{ticket.id}}-solved-{{ticket.updated_at_with_timestamp}}", "ticket_id": {{ticket.id}}, "action": "solved"}
+   {"invocation_id": "{{ticket.id}}-{{ticket.status}}-{{ticket.updated_at_with_timestamp}}", "ticket_id": {{ticket.id}}, "action": "{{ticket.status}}"}
    ```
-   `ticket_id` phải là số nguyên (không có dấu nháy), `invocation_id` bắt buộc (thiếu -> `400`). Dùng status viết cứng thay vì `{{ticket.status}}` vì giá trị này có thể bị dịch.
+   `ticket_id` phải là số nguyên (không có dấu nháy), `invocation_id` bắt buộc (thiếu -> `400`). API chuẩn hóa `action` (chữ thường, bỏ khoảng trắng, `On-hold` -> `hold`) nên cần tài khoản Zendesk ngôn ngữ English; nếu không, dùng 1 trigger mỗi status với `action` cố định (xem phụ lục trong handoff doc).
    Zendesk Events (`zendesk:ticket.status_changed`) chưa được xác nhận khớp parser nên không khuyến nghị.
 
 ## 5. Chạy API

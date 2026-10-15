@@ -216,17 +216,23 @@ Sau đó mở `.env` và điền các giá trị thật. **Không bao giờ comm
 | ---- | -------- | ------ |
 | `ZENDESK_SUBDOMAIN` | Có | Chỉ tên subdomain, ví dụ `acme` cho `acme.zendesk.com`. |
 | `ZENDESK_WEBHOOK_SECRET` | Có | Signing secret của webhook Zendesk. |
-| `ZENDESK_OAUTH_TOKEN` | ưu tiên | OAuth access token — **cách được khuyến nghị**. |
-| `ZENDESK_EMAIL` | fallback | Email agent, chỉ dùng khi `ZENDESK_OAUTH_TOKEN` trống. |
-| `ZENDESK_API_TOKEN` | fallback | API token, chỉ dùng khi `ZENDESK_OAUTH_TOKEN` trống. |
+| `ZENDESK_OAUTH_CLIENT_ID` | khuyến nghị | Unique identifier của OAuth client (client credentials). Phải đặt cùng `ZENDESK_OAUTH_CLIENT_SECRET`. |
+| `ZENDESK_OAUTH_CLIENT_SECRET` | khuyến nghị | Secret của OAuth client. |
+| `ZENDESK_OAUTH_SCOPES` | không | Mặc định `tickets:read tickets:write` (tên scope chưa xác nhận, có thể chỉnh). |
+| `ZENDESK_OAUTH_TOKEN_TTL` | không | Thời gian sống access token yêu cầu (giây), mặc định 3600, tự giới hạn 300–172800. |
+| `ZENDESK_OAUTH_TOKEN` | cũ | Access token tĩnh, không tự làm mới. Chỉ dùng khi không có client id/secret. |
+| `ZENDESK_EMAIL` | cũ (deprecated) | Email agent, chỉ dùng khi hai cách trên đều trống. |
+| `ZENDESK_API_TOKEN` | cũ (deprecated) | API token, chỉ dùng khi hai cách trên đều trống. |
 
-**Về cách xác thực:** ứng dụng ưu tiên OAuth bearer token. Nếu `ZENDESK_OAUTH_TOKEN` trống, ứng dụng
-tự động dùng cặp email + API token. Ứng dụng **sẽ không khởi động** nếu thiếu cả hai.
+**Về cách xác thực:** thứ tự ưu tiên là client credentials (id + secret) > `ZENDESK_OAUTH_TOKEN` > email + API token.
+Với client credentials, backend gọi `POST https://<subdomain>.zendesk.com/oauth/tokens` (`grant_type=client_credentials`),
+lưu token trong bộ nhớ, tự làm mới khi còn dưới 60 giây, và khi gặp `401` sẽ làm mới rồi thử lại đúng một lần.
+Chỉ đặt một trong hai biến id/secret thì ứng dụng **không khởi động**; thiếu mọi cách xác thực cũng vậy.
 
-> **Lưu ý về API token:** Zendesk đang chuyển hướng sang OAuth cho các tích hợp mới. Hãy ưu tiên
-> `ZENDESK_OAUTH_TOKEN` khi thiết lập dự án mới; cặp `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN` chỉ được
-> giữ lại để tương thích ngược. Tham khảo trực tiếp tài liệu Zendesk hiện hành về lộ trình này —
-> repo này không khẳng định mốc thời gian cụ thể.
+> **Lưu ý:** Zendesk chặn tạo API token mới từ 2026-10-27 và vô hiệu hóa mọi API token vào 2027-04-30
+> ([hướng dẫn migrate](https://developer.zendesk.com/documentation/api-basics/authentication/oauth-migration/)).
+> Cặp `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN` chỉ còn để tương thích ngược. Thao tác ticket được ghi nhận
+> cho người đã tạo OAuth client, nên hãy tạo nó bằng một service user chuyên dụng.
 
 ### 4.3. Nhóm bảo mật
 
@@ -425,7 +431,7 @@ INFO  Created Zendesk ticket from Slack message
 Điền vào `.env`:
 
 - `ZENDESK_SUBDOMAIN` = subdomain của bạn (không kèm `.zendesk.com`).
-- Ưu tiên `ZENDESK_OAUTH_TOKEN`. Nếu dùng cách cũ: `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN`.
+- Ưu tiên `ZENDESK_OAUTH_CLIENT_ID` + `ZENDESK_OAUTH_CLIENT_SECRET` (client credentials của service user). Cách cũ: `ZENDESK_OAUTH_TOKEN`, hoặc `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN` (deprecated).
 
 ### 7.2. Tạo webhook
 
@@ -725,7 +731,7 @@ internet qua HTTP thường.
 
 ### 10.4. Xoay vòng secret
 
-Khi thay `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `ZENDESK_OAUTH_TOKEN`, `ZENDESK_API_TOKEN` hoặc
+Khi thay `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `ZENDESK_OAUTH_CLIENT_SECRET`, `ZENDESK_OAUTH_TOKEN`, `ZENDESK_API_TOKEN` hoặc
 `ZENDESK_WEBHOOK_SECRET`, cần khởi động lại dịch vụ.
 
 → **Nên:** lưu secret trong secret manager (Vault, AWS Secrets Manager, GitHub Actions Secrets),

@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from app.api.router import api_router
-from app.clients import SlackClient, ZendeskClient
+from app.clients import SlackClient, ZendeskClient, ZendeskTokenProvider
 from app.core.config import get_settings
 from app.db.base import init_db
 
@@ -32,7 +32,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await init_db()
 
+    token_provider = None
+    if settings.uses_client_credentials:
+        assert settings.zendesk_oauth_client_id and settings.zendesk_oauth_client_secret
+        token_provider = ZendeskTokenProvider(
+            base_url=settings.zendesk_base_url,
+            client_id=settings.zendesk_oauth_client_id,
+            client_secret=settings.zendesk_oauth_client_secret.get_secret_value(),
+            scopes=settings.zendesk_oauth_scopes,
+            ttl_seconds=settings.zendesk_oauth_token_ttl,
+            timeout=settings.http_timeout_seconds,
+        )
     app.state.zendesk_client = ZendeskClient(
+        token_provider=token_provider,
         base_url=settings.zendesk_base_url,
         timeout=settings.http_timeout_seconds,
         oauth_token=(

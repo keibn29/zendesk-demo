@@ -7,6 +7,7 @@ import logging
 from dataclasses import dataclass
 
 from app.clients import SlackClient
+from app.core.config import normalize_status
 from app.repositories import Claim, ProcessedEventRepository, TicketMappingRepository
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class ReactionService:
         self._deadline = processing_deadline_seconds
 
     def reaction_for(self, status: str) -> str:
-        return self._reactions.get(status.strip().lower(), "")
+        return self._reactions.get(normalize_status(status), "")
 
     async def apply_reaction(self, event: ZendeskTicketEvent) -> str:
         """Idempotently add the reaction for the ticket's Slack message.

@@ -15,6 +15,19 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 SUBDOMAIN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
 
+_STATUS_ALIASES = {"on-hold": "hold", "on hold": "hold", "onhold": "hold", "on_hold": "hold"}
+
+
+def normalize_status(status: str) -> str:
+    """Normalize a Zendesk status label to a reaction-map key.
+
+    Lowercases, strips, and maps the "On-hold" spellings to `hold`. Unknown
+    values pass through unchanged (they simply have no reaction).
+    """
+    key = status.strip().lower()
+    return _STATUS_ALIASES.get(key, key)
+
+
 class Settings(BaseSettings):
     """All configuration for the service. Secrets are never logged."""
 
@@ -38,7 +51,14 @@ class Settings(BaseSettings):
     # --- Zendesk ---
     zendesk_subdomain: str
     zendesk_webhook_secret: SecretStr
-    # Preferred: OAuth access token. Falls back to email + API token.
+    # Auth precedence: client credentials (id + secret) > static OAuth token >
+    # legacy email + API token (DEPRECATED: Zendesk is retiring API tokens).
+    zendesk_oauth_client_id: str | None = None
+    zendesk_oauth_client_secret: SecretStr | None = None
+    # Scope names are configurable because they are not verified here.
+    zendesk_oauth_scopes: str = "tickets:read tickets:write"
+    # Requested access-token lifetime in seconds (clamped to 300..172800).
+    zendesk_oauth_token_ttl: int = 3600
     zendesk_oauth_token: SecretStr | None = None
     zendesk_email: str | None = None
     zendesk_api_token: SecretStr | None = None
@@ -92,6 +112,7 @@ class Settings(BaseSettings):
         "webhook_shared_token",
         "zendesk_oauth_token",
         "zendesk_api_token",
+        "zendesk_oauth_client_secret",
         mode="before",
     )
     @classmethod
@@ -100,6 +121,18 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @field_validator("zendesk_oauth_client_id", mode="before")
+    @classmethod
+    def _blank_client_id_to_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("zendesk_oauth_token_ttl")
+    @classmethod
+    def _clamp_token_ttl(cls, value: int) -> int:
+        return max(300, min(172800, value))
 
     @field_validator("http_timeout_seconds")
     @classmethod
@@ -159,18 +192,30 @@ class Settings(BaseSettings):
                 "PROCESSING_CLAIM_TIMEOUT_SECONDS "
                 f"({self.processing_claim_timeout_seconds})."
             )
-        if not self.zendesk_oauth_token and not (
-            self.zendesk_email and self.zendesk_api_token
+        if bool(self.zendesk_oauth_client_id) != bool(self.zendesk_oauth_client_secret):
+            raise ValueError(
+                "ZENDESK_OAUTH_CLIENT_ID and ZENDESK_OAUTH_CLIENT_SECRET "
+                "must be set together."
+            )
+        if (
+            not self.uses_client_credentials
+            and not self.zendesk_oauth_token
+            and not (self.zendesk_email and self.zendesk_api_token)
         ):
             raise ValueError(
-                "Zendesk auth requires either ZENDESK_OAUTH_TOKEN or "
-                "ZENDESK_EMAIL + ZENDESK_API_TOKEN."
+                "Zendesk auth requires ZENDESK_OAUTH_CLIENT_ID + "
+                "ZENDESK_OAUTH_CLIENT_SECRET (recommended), or "
+                "ZENDESK_OAUTH_TOKEN, or legacy ZENDESK_EMAIL + ZENDESK_API_TOKEN."
             )
         return self
 
     @property
     def zendesk_base_url(self) -> str:
         return f"https://{self.zendesk_subdomain}.zendesk.com"
+
+    @property
+    def uses_client_credentials(self) -> bool:
+        return bool(self.zendesk_oauth_client_id and self.zendesk_oauth_client_secret)
 
     @property
     def min_claim_timeout_seconds(self) -> float:
@@ -198,7 +243,7 @@ class Settings(BaseSettings):
 
     def reaction_for_status(self, status: str) -> str:
         """Map a Zendesk status / event action to a Slack reaction name."""
-        return self.reaction_map().get(status.strip().lower(), "")
+        return self.reaction_map().get(normalize_status(status), "")
 
 
 @lru_cache

@@ -31,6 +31,14 @@ docker compose up --build
 | POST | `/webhooks/slack/events` | Slack Events API receiver (needs `event_callback: message` + `url_verification` subscopes). |
 | POST | `/webhooks/zendesk` | Zendesk ticket webhook receiver. |
 
+## Zendesk authentication
+
+Precedence: OAuth client credentials (`ZENDESK_OAUTH_CLIENT_ID` + `ZENDESK_OAUTH_CLIENT_SECRET`)
+> static `ZENDESK_OAUTH_TOKEN` > legacy `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN` (deprecated).
+With client credentials, `ZendeskTokenProvider` (`app/clients/__init__.py`) requests a token from
+`POST /oauth/tokens`, caches it in memory, refreshes it 60s before expiry (lock-guarded), and on a
+`401` refreshes and retries the request once.
+
 ## Architecture
 
 ```

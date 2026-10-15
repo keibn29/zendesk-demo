@@ -273,3 +273,53 @@ def test_default_deadline_is_below_lease(make_settings):
 def test_non_positive_or_non_finite_deadline_rejected(make_settings, value):
     with pytest.raises(ValidationError):
         make_settings(processing_deadline_seconds=value)
+
+
+# --- Zendesk client_credentials config ---
+
+
+def test_client_credentials_alone_is_valid(make_settings):
+    s = make_settings(
+        zendesk_oauth_token=None,
+        zendesk_oauth_client_id="slack_bridge",
+        zendesk_oauth_client_secret="sec",
+    )
+    assert s.uses_client_credentials
+    assert s.zendesk_oauth_scopes == "tickets:read tickets:write"
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"zendesk_oauth_client_id": "x"},
+        {"zendesk_oauth_client_secret": "y"},
+    ],
+)
+def test_partial_client_credentials_rejected(make_settings, kwargs):
+    with pytest.raises(ValidationError, match="set together"):
+        make_settings(**kwargs)
+
+
+def test_client_credentials_take_precedence_over_static_token(make_settings):
+    s = make_settings(zendesk_oauth_client_id="x", zendesk_oauth_client_secret="y")
+    assert s.uses_client_credentials
+    assert s.zendesk_oauth_token is not None  # still accepted, just not used
+
+
+@pytest.mark.parametrize("raw,expected", [(10, 300), (3600, 3600), (10**7, 172800)])
+def test_token_ttl_clamped(make_settings, raw, expected):
+    assert make_settings(zendesk_oauth_token_ttl=raw).zendesk_oauth_token_ttl == expected
+
+
+def test_client_secret_not_in_repr(make_settings):
+    s = make_settings(zendesk_oauth_client_id="x", zendesk_oauth_client_secret="top-secret")
+    assert "top-secret" not in repr(s)
+    assert "top-secret" not in str(s.zendesk_oauth_client_secret)
+
+
+@pytest.mark.parametrize(
+    "label,expected",
+    [("On-hold", "hourglass_flowing_sand"), (" SOLVED ", "white_check_mark"), ("Đang xử lý", "")],
+)
+def test_reaction_for_status_normalizes_labels(make_settings, label, expected):
+    assert make_settings().reaction_for_status(label) == expected
