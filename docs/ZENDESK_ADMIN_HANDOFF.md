@@ -2,63 +2,16 @@
 
 ---
 
-## Phần A. Đọc trước (1 phút)
-
-**Hệ thống này để làm gì?**
-Team kỹ thuật cần quyền truy cập Zendesk để hệ thống tự động:
-
-1. **Tạo ticket** trên Zendesk (từ Slack, và sau này từ các nguồn khác như form, email, hệ thống nội bộ...).
-2. **Lấy ticket về** để lưu trữ và làm báo cáo.
-3. **Xử lý ticket**: đổi status, public reply, internal note, gán assignee/group, gắn tag, thêm attachment.
-4. **Nhận webhook** mỗi khi ticket đổi status.
-
-**Hệ thống kết nối bằng gì?**
-Bằng một **OAuth client**. OAuth client luôn **gắn với tài khoản Zendesk đã tạo ra nó**: mọi ticket và thao tác của hệ thống sẽ **đứng tên tài khoản đó**, và có **quyền giống tài khoản đó** (trong giới hạn Scopes ở Bước 2).
-
-**Bạn tự chọn và tự quản lý tài khoản này.** Dev không cần biết email hay password của tài khoản.
-
-**Cần chuẩn bị:**
-
-- [ ] Tài khoản Zendesk của bạn có quyền **Admin**.
-- [ ] Thông tin dev gửi kèm tài liệu này:
-
-| Thông tin                              | Giá trị                                              |
-| -------------------------------------- | ---------------------------------------------------- |
-| Webhook URL                            | `https://api.zendesk.tidesquare.vn/webhooks/zendesk` |
-| File app (tùy chọn, chỉ dùng ở Bước 5) | `zaf.zip`                                            |
-
-**Tên dùng thống nhất trong tài liệu này** (gõ đúng y như sau):
-
-| Mục              | Tên                                       |
-| ---------------- | ----------------------------------------- |
-| Tên OAuth client | `Tidesquare Integration`                  |
-| Identifier       | `tidesquare_integration`                  |
-| Tên webhook      | `Tidesquare Integration`                  |
-| Tên trigger      | `Tidesquare Integration - status changed` |
-
-**Danh sách việc cần làm:**
-
-- [ ] Bước 1. Chọn tài khoản đứng tên và đăng nhập
-- [ ] Bước 2. Tạo OAuth client
-- [ ] Bước 3. Tạo webhook
-- [ ] Bước 4. Tạo trigger
-- [ ] Bước 5. Cài app trên sidebar của ticket (tùy chọn)
-- [ ] Bước 6. Gửi thông tin lại cho dev
-
-> Giao diện Zendesk có thể khác một chút so với mô tả. Nếu không thấy đúng tên nút, xem mục **"Gặp vấn đề?"** ở cuối tài liệu.
-
----
-
 ## Bước 1. Chọn tài khoản đứng tên và đăng nhập
 
 Chọn **một** trong hai cách:
 
-| | Cách 1: Tài khoản riêng cho hệ thống (khuyến nghị) | Cách 2: Dùng luôn tài khoản Admin của bạn |
-| --- | --- | --- |
-| Ticket do hệ thống tạo hiện tên | Tài khoản riêng (ví dụ: `Integration Bot`) | Tên của bạn |
-| Khi bạn nghỉ việc / đổi tài khoản | Hệ thống vẫn chạy bình thường | Hệ thống **ngừng chạy**, phải tạo lại OAuth client |
-| Agent seat | Tốn thêm **1 agent seat** | Không tốn thêm |
-| Thời gian | Thêm khoảng 5 phút | Nhanh nhất |
+|                                   | Cách 1: Tài khoản riêng cho hệ thống (khuyến nghị) | Cách 2: Dùng luôn tài khoản Admin của bạn          |
+| --------------------------------- | -------------------------------------------------- | -------------------------------------------------- |
+| Ticket do hệ thống tạo hiện tên   | Tài khoản riêng (ví dụ: `Integration Bot`)         | Tên của bạn                                        |
+| Khi bạn nghỉ việc / đổi tài khoản | Hệ thống vẫn chạy bình thường                      | Hệ thống **ngừng chạy**, phải tạo lại OAuth client |
+| Agent seat                        | Tốn thêm **1 agent seat**                          | Không tốn thêm                                     |
+| Thời gian                         | Thêm khoảng 5 phút                                 | Nhanh nhất                                         |
 
 **Yêu cầu chung:** tài khoản được chọn phải có role **Admin**, và **giữ role Admin** trong suốt thời gian hệ thống hoạt động (xem mục **"Lưu ý khi quản lý tài khoản đứng tên về sau"**).
 
@@ -102,12 +55,12 @@ Không cần làm gì thêm. Đăng nhập Zendesk bằng tài khoản của b�
 
 4. Ở phần **Scopes**, **chỉ tick** các ô sau:
 
-   | Tick ô này                 | Nghĩa là hệ thống được...                                                                                                                  |
-   | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+   | Tick ô này                 | Nghĩa là hệ thống được...                                                                                                                              |
+   | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
    | `read`                     | **Xem** dữ liệu Zendesk: ticket, lịch sử thay đổi (audit), custom field, requester, assignee, group, organization; export toàn bộ ticket về để lưu trữ |
-   | `tickets:write`            | Tạo ticket, đổi status, public reply, internal note, gán assignee/group, gắn tag, đổi priority, merge ticket                               |
-   | `ticket_attachments:write` | Thêm attachment vào ticket                                                                                                                 |
-   | `users:write`              | Tạo requester mới khi ticket được gửi từ người chưa có trong Zendesk                                                                       |
+   | `tickets:write`            | Tạo ticket, đổi status, public reply, internal note, gán assignee/group, gắn tag, đổi priority, merge ticket                                           |
+   | `ticket_attachments:write` | Thêm attachment vào ticket                                                                                                                             |
+   | `users:write`              | Tạo requester mới khi ticket được gửi từ người chưa có trong Zendesk                                                                                   |
 
    **Không tick** các ô khác (đặc biệt **không tick `write`** và **`impersonate`**).
    Nhờ vậy, hệ thống **xem** được dữ liệu, nhưng **chỉ sửa** được ticket, attachment và requester. Hệ thống **không** sửa được trigger, cài đặt tài khoản hay các phần khác của Zendesk.
@@ -133,7 +86,7 @@ Nếu dùng Cách 1: từ đây có thể **đóng cửa sổ Incognito** và qu
    | Ô | Điền / Chọn |
    | -------------- | -------------------------------- |
    | Name | `Tidesquare Integration` |
-   | Endpoint URL | Webhook URL ở **Phần A** |
+   | Endpoint URL | `https://api.zendesk.tidesquare.vn/webhooks/zendesk` |
    | Request method | **POST** |
    | Request format | **JSON** |
    | Authentication | **None** |
@@ -239,15 +192,15 @@ Hệ thống có **quyền giống tài khoản đứng tên** (trong giới h�
 
 ## Gặp vấn đề?
 
-| Tình huống                                                   | Cách xử lý                                                                                                                                                          |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bước 1 (Cách 1): Zendesk báo email **đã tồn tại**            | Email này đang được dùng trong Zendesk (có thể là email khách hàng hoặc email nhận ticket). Chọn một email khác.                                                    |
-| Bước 1 (Cách 1): không nhận được email verify                | Kiểm tra thư mục Spam. Hoặc vào Team members → mở tài khoản đó → gửi lại invite.                                                                                    |
-| Bước 2: không thấy phần **Scopes**                           | Bỏ qua phần đó, lưu bình thường, và **báo dev** để dev giới hạn scope ở phía hệ thống.                                                                              |
-| Bước 2: không thấy **Client kind**                           | Bỏ qua, lưu bình thường và báo dev.                                                                                                                                 |
-| Lỡ tạo OAuth client bằng **tài khoản không đúng ý**          | Xóa OAuth client đó, đăng nhập đúng tài khoản rồi làm lại Bước 2.                                                                                                   |
-| Đổi role / quyền của tài khoản đứng tên xong thì hệ thống lỗi | **Báo dev** kèm thời điểm thay đổi. Nếu cần chạy gấp, trả lại role cũ trong lúc dev kiểm tra.                                                                      |
-| Dev báo **Webhook URL thay đổi**                             | Mở webhook `Tidesquare Integration` → sửa **Endpoint URL** → **Update**. Không cần tạo lại trigger. Nếu Zendesk báo secret thay đổi thì gửi lại secret mới cho dev. |
-| Ticket đổi status nhưng hệ thống không nhận được             | Báo dev.                                                                                                                                                            |
+| Tình huống                                                    | Cách xử lý                                                                                                                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bước 1 (Cách 1): Zendesk báo email **đã tồn tại**             | Email này đang được dùng trong Zendesk (có thể là email khách hàng hoặc email nhận ticket). Chọn một email khác.                                                    |
+| Bước 1 (Cách 1): không nhận được email verify                 | Kiểm tra thư mục Spam. Hoặc vào Team members → mở tài khoản đó → gửi lại invite.                                                                                    |
+| Bước 2: không thấy phần **Scopes**                            | Bỏ qua phần đó, lưu bình thường, và **báo dev** để dev giới hạn scope ở phía hệ thống.                                                                              |
+| Bước 2: không thấy **Client kind**                            | Bỏ qua, lưu bình thường và báo dev.                                                                                                                                 |
+| Lỡ tạo OAuth client bằng **tài khoản không đúng ý**           | Xóa OAuth client đó, đăng nhập đúng tài khoản rồi làm lại Bước 2.                                                                                                   |
+| Đổi role / quyền của tài khoản đứng tên xong thì hệ thống lỗi | **Báo dev** kèm thời điểm thay đổi. Nếu cần chạy gấp, trả lại role cũ trong lúc dev kiểm tra.                                                                       |
+| Dev báo **Webhook URL thay đổi**                              | Mở webhook `Tidesquare Integration` → sửa **Endpoint URL** → **Update**. Không cần tạo lại trigger. Nếu Zendesk báo secret thay đổi thì gửi lại secret mới cho dev. |
+| Ticket đổi status nhưng hệ thống không nhận được              | Báo dev.                                                                                                                                                            |
 
 > Lưu ý thêm: Zendesk đang deprecate API token (không cho tạo mới từ 27/10/2026), nên tài liệu này dùng OAuth client. **Không cần** tạo API token.
